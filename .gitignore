@@ -1,0 +1,35 @@
+# Node / Turborepo / Angular
+node_modules/
+.turbo/
+dist/
+.angular/
+
+# Java / Spring Boot / Maven
+target/
+*.jar
+*.war
+.mvn/timing.properties
+
+# Python / FastAPI
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Terraform (nunca subir estados ni secretos)
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+override.tf
+
+# Variables de entorno y SO
+.env
+.env.local
+.env.*.local
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
