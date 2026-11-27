@@ -10,6 +10,18 @@ output "private_subnet_ids" {
   value = [aws_subnet.private_a.id, aws_subnet.private_b.id]
 }
 
-output "microservices_sg_id" {
-  value = aws_security_group.microservices_sg.id
+output "alb_sg_id" {
+  value = aws_security_group.alb_sg.id
+}
+
+output "bastion_sg_id" {
+  value = aws_security_group.bastion_sg.id
+}
+
+output "app_sg_id" {
+  value = aws_security_group.app_sg.id
+}
+
+output "db_sg_id" {
+  value = aws_security_group.db_sg.id
 }

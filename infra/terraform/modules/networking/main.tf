@@ -17,7 +17,6 @@ resource "aws_internet_gateway" "igw" {
   }
 }
 
-# Nivel 1: Subredes Públicas (DMZ) en 2 Zonas de Disponibilidad
 resource "aws_subnet" "public_a" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
@@ -36,7 +35,6 @@ resource "aws_subnet" "public_b" {
   tags = { Name = "${var.project_name}-${var.environment}-public-1b" }
 }
 
-# Nivel 2 y 3: Subredes Privadas para Microservicios y Bases de Datos
 resource "aws_subnet" "private_a" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.11.0/24"
@@ -74,17 +72,40 @@ resource "aws_route_table_association" "pub_b" {
   route_table_id = aws_route_table.public_rt.id
 }
 
-# Security Group para Microservicios Internos (gRPC y HTTP dentro de la VPC)
-resource "aws_security_group" "microservices_sg" {
-  name        = "${var.project_name}-${var.environment}-ms-sg"
-  description = "Trafico interno gRPC/HTTP entre microservicios GYMFOOD"
+resource "aws_route_table" "private_rt" {
+  vpc_id = aws_vpc.main.id
+  tags   = { Name = "${var.project_name}-${var.environment}-private-rt" }
+}
+
+resource "aws_route_table_association" "priv_a" {
+  subnet_id      = aws_subnet.private_a.id
+  route_table_id = aws_route_table.private_rt.id
+}
+
+resource "aws_route_table_association" "priv_b" {
+  subnet_id      = aws_subnet.private_b.id
+  route_table_id = aws_route_table.private_rt.id
+}
+
+# --- 4 SECURITY GROUPS EN CASCADA ---
+
+resource "aws_security_group" "alb_sg" {
+  name        = "${var.project_name}-${var.environment}-alb-sg"
+  description = "Acceso publico HTTP/HTTPS al ALB"
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    from_port   = 0
-    to_port     = 65535
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -94,5 +115,92 @@ resource "aws_security_group" "microservices_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "${var.project_name}-${var.environment}-ms-sg" }
+  tags = { Name = "${var.project_name}-${var.environment}-alb-sg" }
+}
+
+resource "aws_security_group" "bastion_sg" {
+  name        = "${var.project_name}-${var.environment}-bastion-sg"
+  description = "Acceso SSH al Bastion Host"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "${var.project_name}-${var.environment}-bastion-sg" }
+}
+
+resource "aws_security_group" "app_sg" {
+  name        = "${var.project_name}-${var.environment}-app-sg"
+  description = "Trafico privado hacia microservicios"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port       = 8000
+    to_port         = 9090
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb_sg.id]
+  }
+
+  ingress {
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.bastion_sg.id]
+  }
+
+  ingress {
+    from_port = 0
+    to_port   = 65535
+    protocol  = "tcp"
+    self      = true
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "${var.project_name}-${var.environment}-app-sg" }
+}
+
+resource "aws_security_group" "db_sg" {
+  name        = "${var.project_name}-${var.environment}-db-sg"
+  description = "Acceso aislado a PostgreSQL y Redis"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [aws_security_group.app_sg.id, aws_security_group.bastion_sg.id]
+  }
+
+  ingress {
+    from_port       = 6379
+    to_port         = 6379
+    protocol        = "tcp"
+    security_groups = [aws_security_group.app_sg.id, aws_security_group.bastion_sg.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "${var.project_name}-${var.environment}-db-sg" }
 }
