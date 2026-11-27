@@ -1,0 +1,10 @@
+variable "project_name" { default = "gymfood" }
+variable "environment" { type = string }
+variable "vpc_id" { type = string }
+variable "public_subnet_ids" { type = list(string) }
+variable "private_subnet_ids" { type = list(string) }
+variable "alb_sg_id" { type = string }
+variable "bastion_sg_id" { type = string }
+variable "app_sg_id" { type = string }
+variable "min_size" { default = 1 }
+variable "max_size" { default = 3 }
